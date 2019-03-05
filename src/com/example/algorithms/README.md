@@ -1,0 +1,1 @@
+Mostly code examples from Skienna's Algorithm Design manual implemented in Scala

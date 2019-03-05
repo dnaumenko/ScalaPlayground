@@ -1,0 +1,6 @@
+target
+.sbtopts
+project/.sbt
+
+.idea
+*.iml
