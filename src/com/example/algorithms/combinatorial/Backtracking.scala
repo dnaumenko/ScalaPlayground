@@ -200,12 +200,12 @@ object Backtracking  {
 }
 
 
-    object Main extends App {
-      {
-        AllPermutationsProblem().generate(3)
-      }
+object Main extends App {
+  {
+    AllPermutationsProblem().generate(3)
+  }
 
-      {
+  {
     val node1 = Node("1")
     val node2 = Node("2")
     val node3 = Node("3")
