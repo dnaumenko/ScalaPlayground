@@ -3,9 +3,9 @@ package com.example.algorithms.combinatorial
 import scala.io.Source
 
 object TravelSalesmanProblem {
-  case class Point(x: Int, y: Int) // x,y coordinates, not latitude/longitude
+  case class Point(index: Int, x: Int, y: Int) // x,y coordinates, not latitude/longitude
 
-  case class TspInstance(points: Seq[Point]) {
+  case class TspInstance(points: List[Point]) {
     def sq(i: Int): Int = i * i
 
     def calcDistance(prev: Point, next: Point): Double = {
@@ -22,15 +22,25 @@ object TravelSalesmanProblem {
     }
 
     override def toString: String = {
-      s"Solution cost: ${cost()}"
+      s"Solution cost: ${cost()}\npoints (${points.size}): $points"
     }
   }
 
   def read(): TspInstance = {
-    val points = Source.fromFile("./src/com/example/algorithms/combinatorial/tsp.txt").getLines().map(_.split(' ').toList).map {
-      case _ :: x :: y :: Nil => Point(x.toInt, y.toInt)
-    }
+    val map = Source.fromFile("./src/com/example/algorithms/combinatorial/tsp.txt").getLines().map(_.split(' ').toList).map {
+      case index :: x :: y :: Nil => index.toInt -> Point(index.toInt, x.toInt, y.toInt)
+    }.toMap
 
-    TspInstance(points.toSeq)
+    val points = Source.fromFile("./src/com/example/algorithms/combinatorial/tsp.txt").getLines().map(_.split(' ').toList).map {
+      case index :: x :: y :: Nil =>  Point(index.toInt, x.toInt, y.toInt)
+    }.toList
+
+    val best = Source.fromFile("./src/com/example/algorithms/combinatorial/tsp_solution.txt").getLines().map(_.toInt).map {
+      index => map(index)
+    }.toList
+
+    println(s"Best: ${TspInstance(best)}")
+
+    TspInstance(points)
   }
 }
