@@ -4,6 +4,7 @@ import com.example.algorithms.combinatorial.HeuristicSearchMethods.{LocalSearch,
 import com.example.algorithms.combinatorial.TravelSalesmanProblem.{Point, TspInstance}
 
 import scala.annotation.tailrec
+import scala.util.Random
 
 object HeuristicSearchMethods {
   trait RandomSampling[T] {
@@ -61,6 +62,69 @@ object HeuristicSearchMethods {
 
         doSolve(nextStep)
       }
+    }
+
+    private def costOfSwapping(was: T, now: T): Double = {
+      // could be implemented more effectively if we calculate was/willbe distances between swapped points
+      // but I don't care
+      solutionCost(now) - solutionCost(was)
+    }
+  }
+
+  trait SimulatedAnnealing[T, P] {
+    // How many times do we cool -- make higher to improve quality, lower to speed the program up
+    // Move in tandem with the coolingFraction
+    private val coolingSteps = 500
+
+    // how much to cool each time -- make higher to improve quality, lower to speed the program up
+    private val coolingFraction = 0.97
+
+    // lower makes it faster, higher makes it potentially better
+    private val stepsPerTemp = 100
+
+    case class SearchStep(stuck: Boolean, solution: T, cost: Double, temperature: Double)
+
+    def makeRandomSolution(): T
+
+    def solutionCost(rndSolution: T): Double
+
+    def elements(solution: T): Seq[P]
+
+    def swapElements(solution: T, i: Int, j: Int): T
+
+    private def allowIncreasingCost(delta: Double, cost: Double, temperature: Double): Boolean = {
+      ???
+    }
+
+    def solve(): T = {
+      val rnd = makeRandomSolution()
+      val cost = solutionCost(rnd)
+      val initialTemp = 1.0
+
+      val problemSize = elements(rnd).size
+
+      val result = 1.to(coolingSteps).foldLeft(SearchStep(stuck = false, rnd, cost, initialTemp)) {
+        case (step, _) =>
+          val temp = step.temperature * coolingFraction
+
+          val solution = 1.to(stepsPerTemp).foldLeft(step.copy(temperature = temp)) {
+            case (tempStep, _) =>
+              val newSolution = swapElements(rnd, Random.nextInt(problemSize), Random.nextInt(problemSize))
+              val delta = costOfSwapping(tempStep.solution, newSolution)
+
+              if (delta < 0)
+                SearchStep(stuck = false, newSolution, tempStep.cost + delta, tempStep.temperature)
+              else if (allowIncreasingCost(delta, tempStep.cost, tempStep.temperature)) {
+                SearchStep(stuck = false, newSolution, tempStep.cost + delta, tempStep.temperature)
+              } else {
+                tempStep
+              }
+          }
+
+          solution
+      }
+
+      result.solution
     }
 
     private def costOfSwapping(was: T, now: T): Double = {
