@@ -1,6 +1,6 @@
 package com.example.algorithms.combinatorial
 
-import com.example.algorithms.combinatorial.HeuristicSearchMethods.{LocalSearch, RandomSampling}
+import com.example.algorithms.combinatorial.HeuristicSearchMethods.{LocalSearch, RandomSampling, SimulatedAnnealing}
 import com.example.algorithms.combinatorial.TravelSalesmanProblem.{Point, TspInstance}
 
 import scala.annotation.tailrec
@@ -82,7 +82,13 @@ object HeuristicSearchMethods {
     // lower makes it faster, higher makes it potentially better
     private val stepsPerTemp = 100
 
-    case class SearchStep(stuck: Boolean, solution: T, cost: Double, temperature: Double)
+    // problem specific Boltzman's constant
+    // May have to adjust if your global value function changes the sizes of the numbers it produces.
+    // It is important that jumps seem random at the begining of the run, and rare at the end of a run, and this is
+    // a knob to tweak that.
+    private val boltzmanCoeff = 0.01
+
+    case class SearchStep(solution: T, cost: Double, temperature: Double)
 
     def makeRandomSolution(): T
 
@@ -93,7 +99,17 @@ object HeuristicSearchMethods {
     def swapElements(solution: T, i: Int, j: Int): T
 
     private def allowIncreasingCost(delta: Double, cost: Double, temperature: Double): Boolean = {
-      ???
+      val exponent = (- delta / cost) / (boltzmanCoeff * temperature)
+      val merit = Math.pow(Math.E, exponent)
+
+      merit > Random.nextDouble()
+    }
+
+    def transitionWithCost(solution: T, i: Int, j: Int): (T, Double) = {
+      // there should be func with will calculate transitions and its cost, but I'm lazy to implement it
+      val newSolution = swapElements(solution, i, j)
+      val delta = solutionCost(solution) - solutionCost(newSolution)
+      (newSolution, delta)
     }
 
     def solve(): T = {
@@ -103,19 +119,19 @@ object HeuristicSearchMethods {
 
       val problemSize = elements(rnd).size
 
-      val result = 1.to(coolingSteps).foldLeft(SearchStep(stuck = false, rnd, cost, initialTemp)) {
+      val result = 1.to(coolingSteps).foldLeft(SearchStep(rnd, cost, initialTemp)) {
         case (step, _) =>
           val temp = step.temperature * coolingFraction
 
           val solution = 1.to(stepsPerTemp).foldLeft(step.copy(temperature = temp)) {
             case (tempStep, _) =>
-              val newSolution = swapElements(rnd, Random.nextInt(problemSize), Random.nextInt(problemSize))
-              val delta = costOfSwapping(tempStep.solution, newSolution)
+              import Random.nextInt
+              val (newSolution, delta) = transitionWithCost(tempStep.solution, nextInt(problemSize), nextInt(problemSize))
 
               if (delta < 0)
-                SearchStep(stuck = false, newSolution, tempStep.cost + delta, tempStep.temperature)
+                SearchStep(newSolution, tempStep.cost + delta, tempStep.temperature)
               else if (allowIncreasingCost(delta, tempStep.cost, tempStep.temperature)) {
-                SearchStep(stuck = false, newSolution, tempStep.cost + delta, tempStep.temperature)
+                SearchStep(newSolution, tempStep.cost + delta, tempStep.temperature)
               } else {
                 tempStep
               }
@@ -125,12 +141,6 @@ object HeuristicSearchMethods {
       }
 
       result.solution
-    }
-
-    private def costOfSwapping(was: T, now: T): Double = {
-      // could be implemented more effectively if we calculate was/willbe distances between swapped points
-      // but I don't care
-      solutionCost(now) - solutionCost(was)
     }
   }
 }
@@ -146,7 +156,7 @@ object TspRandomSampled extends App {
     }
 
     override def solutionCost(rndSolution: TspInstance): Double = rndSolution.cost()
-  }.solve(2000000, problem)
+  }.solve(200000, problem)
 
   println("Ended up with")
   println(solution)
@@ -157,8 +167,37 @@ object TspLocalSearch extends App {
   println("Started with")
   println(problem)
 
-  val result = 1.to(1000).map { _ =>
+  val result = 1.to(1).map { _ =>
     val solution = new LocalSearch[TspInstance, Point] {
+      override def makeRandomSolution(): TspInstance = {
+        TspInstance(problem.points.head +: scala.util.Random.shuffle(problem.points.tail))
+      }
+
+      override def solutionCost(rndSolution: TspInstance): Double = rndSolution.cost()
+
+      override def elements(solution: TspInstance): Seq[Point] = solution.points
+
+      override def swapElements(solution: TspInstance, i: Int, j: Int): TspInstance = {
+        val list = solution.points
+        solution.copy(points = list.updated(i, list(j)).updated(j, list(i)))
+      }
+    }.solve()
+
+    solution
+  }.minBy(_.cost())
+
+
+  println("Ended up with")
+  println(result)
+}
+
+object TspSimulatedAnnealing extends App {
+  val problem = TravelSalesmanProblem.read()
+  println("Started with")
+  println(problem)
+
+  val result = 1.to(200).map { _ =>
+    val solution = new SimulatedAnnealing[TspInstance, Point] {
       override def makeRandomSolution(): TspInstance = {
         TspInstance(problem.points.head +: scala.util.Random.shuffle(problem.points.tail))
       }
