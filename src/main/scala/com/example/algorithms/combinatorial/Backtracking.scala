@@ -2,8 +2,6 @@ package com.example.algorithms.combinatorial
 
 import com.example.algorithms.combinatorial.Backtracking._
 
-import scala.collection.immutable
-
 object Backtracking  {
   /**
     * General form of backtracking algorithm
@@ -176,10 +174,10 @@ object Backtracking  {
       }
     }
 
-    private def randomNext(input: Board): Option[(Int, Int)] = for {
-      (row, index) <- input.cells().zipWithIndex.find(_._1.exists(_ == 0))
-      point = (index, row.indexOf(0))
-    } yield point
+//    private def randomNext(input: Board): Option[(Int, Int)] = for {
+//      (row, index) <- input.cells().zipWithIndex.find(_._1.exists(_ == 0))
+//      point = (index, row.indexOf(0))
+//    } yield point
 
     private def mostConstrainedNext(input: Board): Option[(Int, Int)] = {
       val cells = input.cells()
