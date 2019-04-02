@@ -1,9 +1,12 @@
 package com.example.functional.cats
 
 import cats.data.{ReaderT, StateT}
+import cats.{Applicative, Monad, effect}
 import cats.effect.concurrent.Ref
 import cats.effect._
 import cats.mtl.{ApplicativeLocal, MonadState}
+import com.example.functional.cats.UpdateLocalContextProblem_Ref.{Consumer, Ctx, Message, ReaderIO}
+import com.example.functional.cats.UpdateLocalContextProblem_StateT.{Ctx, StateIO}
 import fs2.Stream
 
 object UpdateLocalContextProblem_Local extends App {
@@ -54,8 +57,6 @@ object UpdateLocalContextProblem_Ref extends App {
 
           for {
             ref <- local.ask
-            refVal <- LiftIO[F].liftIO(ref.get)
-//            _ <- Sync[F].delay(println(s"Was Thread ${Thread.currentThread().getId} -> $refVal, $msg"))
             _ <- LiftIO[F].liftIO(ref.set(ctx))
             ref <- local.ask
             refValNew <- LiftIO[F].liftIO(ref.get)
@@ -83,6 +84,7 @@ object UpdateLocalContextProblem_Ref extends App {
       .compile.toList.run(ref)
   } yield result
 
+  // There is no mapping between ReaderT's ctx and message. It's completely lost and random!
   println(io.unsafeRunSync()) // prints List(ctx), but I want to print it ctx-updated
 }
 
@@ -128,107 +130,42 @@ object UpdateLocalContextProblem_StateT extends App {
 
   def toCtx(header: Header): Ctx = s"$header-updated"
 
-  case class Consumer[F[_] : Sync](messages: Seq[Message])(implicit val local: MonadState[F, Ctx]) {
-    def consume(): Stream[F, Ctx] = {
+  case class Consumer[F[_] : Sync : Monad](messages: Seq[Message])(implicit val local: MonadState[F, Ctx]) {
+    def consume(): Stream[F, Message] = {
       Stream.emits[F, Message](messages).evalMap {
         msg =>
           val ctx = toCtx(msg.header)
-          val a: F[Message] = Sync[F].map(local.set(ctx)) {
+          Sync[F].map(local.set(ctx)) {
             _ => msg
           }
-
-          a
-      }.evalMap {
-        _ => local.get
       }
     }
   }
 
   implicit val ioCs = IO.contextShift(scala.concurrent.ExecutionContext.global)
+  import cats.effect.StateTConcurrent._
 
-  implicit def catsStateTConcurrent[F[_]: Concurrent, S, A]: Concurrent[StateIO] = {
-    val C = Concurrent[IO]
+  val io = for {
+    _ <- StateT[IO, Ctx, Message](ctx => IO.pure(ctx -> Message(s"value 1", s"header 1")))
+    _ <- MonadState[StateIO, Ctx].inspect(s => println(s"Init: $s"))
+    _ <- MonadState[StateIO, Ctx].set("Updated Context")
+    _ <- MonadState[StateIO, Ctx].inspect(s => println(s"UpdateFirst: $s"))
+    _ <- Concurrent[StateIO].racePair(MonadState[StateIO, Ctx].set("Updated in Fiber Context 1"), MonadState[StateIO, Ctx].set("Updated in Fiber Context 2"))
+    _ <- Concurrent[StateIO].racePair(MonadState[StateIO, Ctx].inspect(s => println(s"Inspect in Fiber: $s")), MonadState[StateIO, Ctx].inspect(s => println(s"Inspect in Fiber: $s")))
+    _ <- StateT.liftF(IO.delay(Thread.sleep(1000)))
+    _ <- MonadState[StateIO, Ctx].inspect(s => println(s"Inspect in parent: $s"))
+  } yield ()
+  io.run("initial").unsafeRunSync()
 
-    new Concurrent[StateIO] {
-      override def start[A](fa: StateIO[A]): StateIO[Fiber[StateIO, A]] = {
-        StateT[IO, Ctx, A](s => C.start(fa.run(s)).map {
-          fiber => (s, fi)
-        })
-      }
-      override def racePair[A, B](fa: StateIO[A], fb: StateIO[B]): StateIO[Either[(A, Fiber[StateIO, B]), (Fiber[StateIO, A], B)]] = ???
-      override def async[A](k: (Either[Throwable, A] => Unit) => Unit): StateIO[A] = ???
-      override def asyncF[A](k: (Either[Throwable, A] => Unit) => StateIO[Unit]): StateIO[A] = ???
-      override def suspend[A](thunk: =>StateIO[A]): StateIO[A] = ???
-      override def bracketCase[A, B](acquire: StateIO[A])(use: A => StateIO[B])(release: (A, ExitCase[Throwable]) => StateIO[Unit]): StateIO[B] = ???
-      override def raiseError[A](e: Throwable): StateIO[A] = ???
-      override def handleErrorWith[A](fa: StateIO[A])(f: Throwable => StateIO[A]): StateIO[A] = ???
-      override def pure[A](x: A): StateIO[A] = ???
-      override def flatMap[A, B](fa: StateIO[A])(f: A => StateIO[B]): StateIO[B] = ???
-      override def tailRecM[A, B](a: A)(f: A => StateIO[Either[A, B]]): StateIO[B] = ???
-    }
-  }
+  println("---------------")
 
-  /*
-    private[effect] trait StateTConcurrent[F[_], S] extends Async.StateTAsync[F, S]
-    with Concurrent[StateT[F, S, ?]] {
-
-    override protected implicit def F: Concurrent[F]
-    override protected def FA = F
-
-    // Needed to drive static checks, otherwise the
-    // compiler will choke on type inference :-(
-    type Fiber[A] = cats.effect.Fiber[StateT[F, S, ?], A]
-
-    override def cancelable[A](k: (Either[Throwable, A] => Unit) => CancelToken[StateT[F, S, ?]]): StateT[F, S, A] =
-      StateT[F, S, A](s => F.cancelable[A](cb => k(cb).run(s).map(_ => ())).map(a => (s, a)))(F)
-
-    override def start[A](fa: StateT[F, S, A]): StateT[F, S, Fiber[A]] =
-      StateT(s => F.start(fa.run(s)).map { fiber => (s, fiberT(fiber)) })
-
-    override def racePair[A, B](fa: StateT[F, S, A], fb: StateT[F, S, B]): StateT[F, S, Either[(A, Fiber[B]), (Fiber[A], B)]] =
-      StateT { startS =>
-        F.racePair(fa.run(startS), fb.run(startS)).map {
-          case Left(((s, value), fiber)) =>
-            (s, Left((value, fiberT(fiber))))
-          case Right((fiber, (s, value))) =>
-            (s, Right((fiberT(fiber), value)))
-        }
-      }
-
-    protected def fiberT[A](fiber: effect.Fiber[F, (S, A)]): Fiber[A] =
-      Fiber(StateT(_ => fiber.join), StateT.liftF(fiber.cancel))
-  }
-   */
-
-  implicit val conc = new Concurrent[StateIO]() {
-    implicit val CE = implicitly[ConcurrentEffect[IO]]
-
-    override def start[A](fa: StateIO[A]): StateIO[Fiber[StateIO, A]] = CE.start(fa)
-
-    override def racePair[A, B](fa: StateIO[A], fb: StateIO[B]): StateIO[Either[(A, Fiber[StateIO, B]), (Fiber[StateIO, A], B)]] = ???
-
-    override def async[A](k: (Either[Throwable, A] => Unit) => Unit): StateIO[A] = ???
-
-    override def asyncF[A](k: (Either[Throwable, A] => Unit) => StateIO[Unit]): StateIO[A] = ???
-
-    override def suspend[A](thunk: =>StateIO[A]): StateIO[A] = ???
-
-    override def bracketCase[A, B](acquire: StateIO[A])(use: A => StateIO[B])(release: (A, ExitCase[Throwable]) => StateIO[Unit]): StateIO[B] = ???
-
-    override def raiseError[A](e: Throwable): StateIO[A] = ???
-
-    override def handleErrorWith[A](fa: StateIO[A])(f: Throwable => StateIO[A]): StateIO[A] = ???
-
-    override def pure[A](x: A): StateIO[A] = ???
-
-    override def flatMap[A, B](fa: StateIO[A])(f: A => StateIO[B]): StateIO[B] = ???
-
-    override def tailRecM[A, B](a: A)(f: A => StateIO[Either[A, B]]): StateIO[B] = ???
-  }
-
-  val result = Consumer[StateIO](Seq(Message("value1", "header1")))
-    .consume()
-    .parEvalMap(10)(m => Sync[StateIO].delay(println(m)))
-    .compile.toList.run("ctx").unsafeRunSync()
-  println(result._1) // prints List(ctx), but I want to print it ctx-updated
+  val ioStream: Stream[StateIO, Message] = Stream
+    .emits[StateIO, Message](1.to(1).map(i => Message(s"value $i", s"header$i")))
+    .evalTap(_ => MonadState[StateIO, Ctx].inspect(s => println(s"Init: $s")))
+    .evalTap(_ => MonadState[StateIO, Ctx].set("Updated Context"))
+    .evalTap(_ => MonadState[StateIO, Ctx].inspect(s => println(s"UpdateFirst: $s")))
+    .evalMap(msg => for {
+      _ <- MonadState[StateIO, Ctx].inspect(s => println(s"Inspect in Fiber: $s"))
+    } yield msg)
+  ioStream.compile.drain.run("init").unsafeRunSync()
 }
