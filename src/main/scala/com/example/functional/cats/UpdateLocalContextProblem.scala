@@ -150,7 +150,13 @@ object UpdateLocalContextProblem_StateT extends App {
     _ <- MonadState[StateIO, Ctx].inspect(s => println(s"Init: $s"))
     _ <- MonadState[StateIO, Ctx].set("Updated Context")
     _ <- MonadState[StateIO, Ctx].inspect(s => println(s"UpdateFirst: $s"))
-    _ <- Concurrent[StateIO].racePair(MonadState[StateIO, Ctx].set("Updated in Fiber Context 1"), MonadState[StateIO, Ctx].set("Updated in Fiber Context 2"))
+    _ <- Concurrent[StateIO].racePair(
+        for {
+          _ <- MonadState[StateIO, Ctx].set("Updated in Fiber Context 1")
+          _ <- MonadState[StateIO, Ctx].inspect(s => println(s"Inspect in Fiber After Update in Fiber: $s"))
+        } yield ()
+      , MonadState[StateIO, Ctx].set("Updated in Fiber Context 2")
+    )
     _ <- Concurrent[StateIO].racePair(MonadState[StateIO, Ctx].inspect(s => println(s"Inspect in Fiber: $s")), MonadState[StateIO, Ctx].inspect(s => println(s"Inspect in Fiber: $s")))
     _ <- StateT.liftF(IO.delay(Thread.sleep(1000)))
     _ <- MonadState[StateIO, Ctx].inspect(s => println(s"Inspect in parent: $s"))

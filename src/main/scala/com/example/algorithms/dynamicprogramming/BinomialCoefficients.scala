@@ -23,3 +23,9 @@ object BinomialCoefficients extends App {
 
   println(binomCoeff(5, 4))
 }
+
+object ApproximateStringMatching {
+  def compareString(first: String, second: String, i: Int, j: Int) = {
+
+  }
+}

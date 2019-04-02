@@ -28,9 +28,9 @@ object StateTConcurrent {
       override def racePair[A, B](fa:  StateIO[A], fb:  StateIO[B]): StateIO[Either[(A, effect.Fiber[StateIO, B]), (effect.Fiber[StateIO, A], B)]] = {
         StateT { startCtx =>
           C.racePair(fa.run(startCtx), fb.run(startCtx)).map {
-            case Left(((ctx, value), fiber)) =>
+            case Left(((_, value), fiber)) =>
               (startCtx, Left((value, fiberT(fiber))))
-            case Right((fiber, (ctx, value))) =>
+            case Right((fiber, (_, value))) =>
               (startCtx, Right((fiberT(fiber), value)))
           }
         }
