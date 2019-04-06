@@ -1,13 +1,13 @@
 package com.example.functional.cats
 
+import cats.Monad
 import cats.data.{ReaderT, StateT}
-import cats.{Applicative, Monad, effect}
-import cats.effect.concurrent.Ref
 import cats.effect._
+import cats.effect.concurrent.Ref
 import cats.mtl.{ApplicativeLocal, MonadState}
-import com.example.functional.cats.UpdateLocalContextProblem_Ref.{Consumer, Ctx, Message, ReaderIO}
-import com.example.functional.cats.UpdateLocalContextProblem_StateT.{Ctx, StateIO}
 import fs2.Stream
+
+import scala.language.higherKinds
 
 object UpdateLocalContextProblem_Local extends App {
   type Ctx = String
@@ -71,9 +71,9 @@ object UpdateLocalContextProblem_Ref extends App {
 
   val io = for {
     ref <- Ref.of[IO, Ctx]("ctx")
-    result <- Consumer[ReaderIO](1.to(50).map(i => Message(s"value $i", s"header$i")))
+    result <- Consumer[ReaderIO](1.to(10).map(i => Message(s"value $i", s"header$i")))
       .consume()
-      .parEvalMap(10)(msg => for {
+      .parEvalMap(1)(msg => for {
         ref <- ApplicativeLocal[ReaderIO, Ref[IO, Ctx]].ask
         ctx <- LiftIO[ReaderIO].liftIO(ref.get)
         _ <- Sync[ReaderIO].delay {
