@@ -9,7 +9,7 @@ import scala.language.higherKinds
 import scala.util.Either
 
 object StateTConcurrent {
-  implicit def catsStateTConcurrent[CC](implicit C: Concurrent[IO], A: Async[StateIO], state: MonadState[StateIO, Ctx]): Concurrent[StateIO] = {
+  implicit def catsStateTConcurrent(implicit C: Concurrent[IO], A: Async[StateIO], state: MonadState[StateIO, Ctx]): Concurrent[StateIO] = {
     new Concurrent[StateIO] {
       // Ignores child context
       override def start[A](fa: StateIO[A]): StateIO[effect.Fiber[StateIO, A]] = StateT(startCtx => {
