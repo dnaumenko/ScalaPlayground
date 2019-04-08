@@ -27,22 +27,3 @@ object BinomialCoefficients extends App {
   println(binomCoeff(5, 4))
 }
 
-object ApproximateStringMatching extends App {
-  def compareString(first: String, second: String, i: Int, j: Int): Int = {
-    if (i == 0 && j == 0) return 1
-    if (i < 0) return j
-    if (j < 0) return i
-
-    val matchCost = compareString(first, second, i - 1, j - 1) + matched(first.charAt(i), second.charAt(j))
-    val insertCost = compareString(first, second, i, j - 1) + 1
-    val deleteCost = compareString(first, second, i - 1, j) + 1
-
-
-    Seq(matchCost, insertCost, deleteCost).min
-  }
-
-  private def matched(i: Char, j: Char): Int = if (i == j) 0 else 1
-
-  val (first, second) = "mamamamamama" -> "papapapapapa"
-  println(Timed(compareString(first, second, first.length - 1, second.length - 1)))
-}
