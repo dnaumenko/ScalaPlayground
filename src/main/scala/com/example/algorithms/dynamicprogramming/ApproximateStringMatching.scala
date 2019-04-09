@@ -34,11 +34,23 @@ object ApproximateStringMatching_Cached extends App {
       i => 1.until(second.length).map(j => (i, j))
     }
 
-    val init = Array.ofDim[Step](maxLength, maxLength).map(_.map(_ => Step(0, "")))
+    val init = Array.ofDim[Step](maxLength, maxLength)
+      .map(_.map(_ => Step(0, "")))
+      .zipWithIndex.map {
+        case (row, rowIndex) => row.zipWithIndex.map {
+          case (col, colIndex) =>
+            (rowIndex, colIndex) match {
+              case (0, i) => col.copy(cost = i, op = if (i > 0) "I" else "")
+              case (i, 0) => col.copy(cost = i, op = if (i > 0) "D" else "")
+              case _ => col
+            }
+        }
+      }
 
     val result = pairsToCompare.foldLeft(init) {
       case (cache, (i, j)) =>
-        val matchCost = (cache(i - 1)(j - 1).cost + matched(first.charAt(i), second.charAt(j))) -> "M"
+        val matchCost = (cache(i - 1)(j - 1).cost + matched(first.charAt(i), second.charAt(j))) ->
+          (if (first.charAt(i) == second.charAt(j)) "S" else "M")
         val insertCost = cache(i)(j - 1).cost + 1 -> "I"
         val deleteCost = cache(i - 1)(j).cost + 1 -> "D"
 
@@ -47,7 +59,7 @@ object ApproximateStringMatching_Cached extends App {
         cache
     }
 
-    result(first.length - 1)(second.length - 1).cost -> reconstructPath(first, second, result)
+    result(first.length - 1)(second.length - 1).cost -> reconstructPath(first, second, result).reverse
   }
 
   private def reconstructPath(first: String, second: String, cache: Array[Array[Step]]): String = {
@@ -55,6 +67,7 @@ object ApproximateStringMatching_Cached extends App {
     def doReconstructPath(first: String, second: String, cache: Array[Array[Step]], i: Int, j: Int, path: String): String = {
       cache.lift(i).flatMap(_.lift(j)).map(_.op).getOrElse("NA") match {
         case "M" => doReconstructPath(first, second, cache, i - 1, j - 1, path + "M")
+        case "S" => doReconstructPath(first, second, cache, i - 1, j - 1, path + "S")
         case "I" => doReconstructPath(first, second, cache, i, j - 1, path + "I")
         case "D" => doReconstructPath(first, second, cache, i - 1, j, path + "D")
         case _ => path
@@ -67,6 +80,6 @@ object ApproximateStringMatching_Cached extends App {
 
   private def matched(i: Char, j: Char): Int = if (i == j) 0 else 1
 
-  val (first, second) = " a" -> " aa"
+  val (first, second) = " aa" -> " a"
   println(Timed(compareString(first, second)))
 }
