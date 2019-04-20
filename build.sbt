@@ -79,7 +79,6 @@ libraryDependencies ++= Seq(
   "com.github.mpilquist" %% "simulacrum" % "0.12.0",
   // li haoyi ammonite repl embed
   "com.lihaoyi" % "ammonite" % "1.1.2" % "test" cross CrossVersion.full
-
 )
 
 //ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }

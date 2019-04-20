@@ -1,7 +1,7 @@
 package cats
 package effect
 
-import cats.data.{IndexedStateT, StateT}
+import cats.data.StateT
 import cats.mtl.MonadState
 import com.example.functional.cats.UpdateLocalContextProblem_StateT.{Ctx, StateIO}
 

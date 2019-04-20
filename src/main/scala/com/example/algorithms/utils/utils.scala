@@ -4,7 +4,7 @@ import scala.language.implicitConversions
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
 
-package object utils {
+object utils {
   object Timed {
     implicit def toValue[U](timed: Timed[U]): U = timed.value
 
