@@ -42,7 +42,7 @@ object CatsReaderIO {
     }
   }
 
-  implicit val updateCallScope: UpdateSomeString[ReaderIO] = new UpdateSomeString[ReaderIO] {
+  implicit val updateSomeString: UpdateSomeString[ReaderIO] = new UpdateSomeString[ReaderIO] {
     override def update(f: String => String): ReaderIO[Unit] = {
       ReaderIO(env => env.callScope.update(f))
     }
